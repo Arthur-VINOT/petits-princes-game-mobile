@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>La Course des Petits Princes</title>
+  <link rel="icon" href="icone.png" type="image/png">
+  <link rel="stylesheet" href="boutonmagic.css">
+  <link rel="stylesheet" href="jumpBtn.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      background: url('fond.jpg') no-repeat center center/cover;
+    }
+    canvas {
+      display: block;
+    }
+    .overlay, #loginZone {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      z-index: 2;
+    }
+    #startScreen, #endScreen, #hitMessage, #gameZone {
+      display: none;
+    }
+    .level-up-message {
+      font-size: 28px;
+      color: yellow;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+    #hitMessage {
+      background: rgba(255, 0, 0, 0.7);
+    }
+    #loginZone {
+      background: rgba(255, 255, 255, 0.9);
+      color: black;
+    }
+    #loginZone input {
+      display: block;
+      margin: 10px auto;
+      padding: 10px;
+      width: 90%;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    #msg {
+      color: red;
+      margin-top: 10px;
+    }
+    #mobileControls {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+    }
+    #jumpBtn {
+      font-size: 24px;
+      padding: 15px 30px;
+      border: none;
+      border-radius: 20px;
+      background-color: #ffc107;
+      color: white;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="loginZone">
+    <h2>Connexion au jeu 🌟
+      <br>Ces information nous serve a dévlopé un classement des joueur. Merci 🤗
+    </h2>
+    <input type="text" id="username" placeholder="Nom d'utilisateur">
+    <input type="password" id="password" placeholder="Mot de passe">
+    <button onclick="login()" class="button marge">Se connecter</button>
+    <button onclick="register()" class="button marge">Créer un compte</button>
+    <p id="msg"></p>
+  </div>
+
+  <div id="startScreen" class="overlay">
+    <h1>Bienvenue dans La Course des Petits Princes 🏃‍♂️</h1>
+    <p>Aide <span id="playerName"></span> à réaliser son rêve en récoltant des pièces et des billets !</p>
+    <img src="icone.png" alt="Logo" style="max-width: 300px; margin-top: 20px; border-radius: 20px;">
+    <button onclick="startGame()" class="button">Commencer</button>
+    <br><a href="cd.html" class="button marge">Condition d'utilsation</a>
+  </div>
+
+  <div id="endScreen" class="overlay">
+    Bravo ! Grâce à toi, un rêve a été accompli 🌟
+    <img src="fin.png" alt="Victoire" style="max-width: 300px; margin-top: 20px; border-radius: 20px;" />
+    <a href="https://www.petitsprinces.com/" target="_blank" class="button marge">Faire un don maintenant</a>
+    <a href="index.html" class="button marge">Recommence et réaccomplis un rêve</a>
+    <a href="https://github.com/Arthur-VINOT" target="_blank" class="button marge">Mon GitHub</a> 
+    <a href="cd.html" class="button">Conditions d'utilisation</a> 
+    <button onclick="logout()" class="button marge">Déconnexion</button>
+  </div>
+
+  <div id="hitMessage" class="overlay">
+    Aïe ! Tu as touché un obstacle ! Fais attention !
+  </div>
+
+  <div id="mobileControls" style="display: none;">
+    <button id="jumpBtn" onclick="sauter()">Sauter</button>
+  </div>
+
+  <audio id="bgm" loop>
+    <source src="music.mp3" type="audio/mpeg">
+  </audio>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    document.body.addEventListener('touchmove', function(e) {
+      e.preventDefault();
+    }, { passive: false });
+
+    const loginZone = document.getElementById('loginZone');
+    const startScreen = document.getElementById('startScreen');
+    const endScreen = document.getElementById('endScreen');
+    const hitMessage = document.getElementById('hitMessage');
+    const bgm = document.getElementById('bgm');
+    const playerNameDisplay = document.getElementById('playerName');
+
+    let player = {}, keys = {}, coins = [], obstacles = [], score = 0, level = 1, gameSpeed = 4;
+    let gravityTimer, lastLevel = 1, levelUpMessage = '', gameRunning = true;
+
+    const playerImage = new Image();
+    playerImage.src = 'prince.png';
+
+    function login() {
+      const user = document.getElementById('username').value;
+      const pass = document.getElementById('password').value;
+      const stored = JSON.parse(localStorage.getItem(user));
+      if (stored && stored.password === pass) {
+        loginZone.style.display = 'none';
+        startScreen.style.display = 'flex';
+        playerNameDisplay.innerText = user;
+      } else {
+        document.getElementById('msg').innerText = "❌ Mauvais identifiants !";
+      }
+    }
+
+    function register() {
+      const user = document.getElementById('username').value;
+      const pass = document.getElementById('password').value;
+      if (localStorage.getItem(user)) {
+        document.getElementById('msg').innerText = "⚠️ Ce nom existe déjà.";
+      } else {
+        localStorage.setItem(user, JSON.stringify({ password: pass }));
+        document.getElementById('msg').innerText = "✅ Compte créé ! Tu peux te connecter.";
+      }
+    }
+
+    function logout() {
+      location.reload();
+    }
+
+    function startGame() {
+      startScreen.style.display = 'none';
+      endScreen.style.display = 'none';
+      document.getElementById('mobileControls').style.display = '';
+      bgm.play();
+      initGame();
+    }
+
+    function createCoin() {
+      let y = Math.random() * (canvas.height - 200) + 100;
+      let type = Math.random() < 0.7 ? 'coin' : 'bill';
+      let value = type === 'coin' ? 1 : 10;
+      coins.push({ 
+        x: canvas.width, 
+        y: y, 
+        width: type === 'coin' ? 15 : 30, 
+        height: type === 'coin' ? 15 : 20, 
+        type, 
+        value 
+      });
+    }
+
+    function createObstacle() {
+      let height = Math.random() * 50 + 20;
+      obstacles.push({ 
+        x: canvas.width, 
+        y: canvas.height - height, 
+        width: 30, 
+        height 
+      });
+    }
+
+    function drawPlayer() {
+      ctx.drawImage(playerImage, player.x, player.y, player.width, player.height);
+    }
+
+    function drawCoins() {
+      for (let coin of coins) {
+        if (coin.type === 'coin') {
+          // Dessiner une pièce (cercle doré)
+          ctx.fillStyle = 'gold';
+          ctx.beginPath();
+          ctx.arc(coin.x, coin.y, coin.width / 2, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Ajouter un effet brillant
+          ctx.strokeStyle = 'yellow';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else {
+          // Dessiner un billet (rectangle vert)
+          ctx.fillStyle = 'green';
+          ctx.fillRect(coin.x - coin.width / 2, coin.y - coin.height / 2, coin.width, coin.height);
+          
+          // Ajouter un détail au billet
+          ctx.strokeStyle = 'darkgreen';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(coin.x - coin.width / 2, coin.y - coin.height / 2, coin.width, coin.height);
+        }
+      }
+    }
+
+    function drawObstacles() {
+      ctx.fillStyle = 'red';
+      for (let obs of obstacles) {
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+      }
+    }
+
+    function drawScore() {
+      ctx.fillStyle = '#333';
+      ctx.font = '20px Arial';
+      ctx.fillText(`Dons : ${score} €`, 10, 30);
+    }
+
+    function drawLevelUpMessage() {
+      if (levelUpMessage) {
+        ctx.fillStyle = 'yellow';
+        ctx.font = '30px Arial';
+        ctx.fillText(levelUpMessage, canvas.width / 2 - ctx.measureText(levelUpMessage).width / 2, canvas.height / 2);
+      }
+    }
+
+    function initGame() {
+      player = { 
+        x: 100, 
+        y: canvas.height - 150, 
+        width: 60, 
+        height: 80, 
+        dy: 0, 
+        gravity: 0.8, 
+        jumpForce: -12, 
+        grounded: false 
+      };
+      keys = {};
+      coins = [];
+      obstacles = [];
+      score = 0;
+      level = 1;
+      gameSpeed = 4;
+      maxScore = 49;
+      lastLevel = 1;
+      levelUpMessage = "";
+      gameRunning = true;
+      gravityTimer = setInterval(() => { gameSpeed += 0.2; }, 3000);
+      gameLoop();
+    }
+
+    document.getElementById('jumpBtn').addEventListener('touchstart', () => { keys[' '] = true; });
+    document.getElementById('jumpBtn').addEventListener('touchend', () => { keys[' '] = false; });
+
+    window.addEventListener('keydown', (e) => keys[e.key] = true);
+    window.addEventListener('keyup', (e) => keys[e.key] = false);
+
+    function gameLoop() {
+      if (!gameRunning) return;
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function update() {
+      // Vérifier la condition de victoire
+      if (score >= 100) {
+        gameRunning = false;
+        clearInterval(gravityTimer);
+        endScreen.style.display = 'flex';
+        return;
+      }
+
+      // Mise à jour du joueur (gravité et saut)
+      player.dy += player.gravity;
+      player.y += player.dy;
+
+      if (player.y > canvas.height - 100) {
+        player.y = canvas.height - 100;
+        player.dy = 0;
+        player.grounded = true;
+      } else {
+        player.grounded = false;
+      }
+
+      if (keys[' '] && player.grounded) {
+        player.dy = player.jumpForce;
+      }
+
+      // Génération aléatoire de pièces, billets et obstacles
+      if (Math.random() < 0.02) {
+        createCoin();
+      }
+
+      if (Math.random() < 0.01) {
+        createObstacle();
+      }
+
+      // Mise à jour des positions des pièces et billets
+      for (let i = coins.length - 1; i >= 0; i--) {
+        coins[i].x -= gameSpeed;
+        
+        // Vérifier les collisions avec le joueur
+        if (
+          player.x < coins[i].x + coins[i].width / 2 &&
+          player.x + player.width > coins[i].x - coins[i].width / 2 &&
+          player.y < coins[i].y + coins[i].height / 2 &&
+          player.y + player.height > coins[i].y - coins[i].height / 2
+        ) {
+          // Collision détectée, ajouter la valeur au score
+          score += coins[i].value;
+          coins.splice(i, 1);
+          continue;
+        }
+        
+        // Supprimer les pièces qui sortent de l'écran
+        if (coins[i].x + coins[i].width < 0) {
+          coins.splice(i, 1);
+        }
+      }
+
+      // Mise à jour des positions des obstacles
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        obstacles[i].x -= gameSpeed;
+        
+        // Vérifier les collisions avec le joueur
+        if (
+          player.x < obstacles[i].x + obstacles[i].width &&
+          player.x + player.width > obstacles[i].x &&
+          player.y < obstacles[i].y + obstacles[i].height &&
+          player.y + player.height > obstacles[i].y
+        ) {
+          // Collision avec un obstacle
+          hitMessage.style.display = 'flex';
+          setTimeout(() => {
+            hitMessage.style.display = 'none';
+          }, 1000);
+          
+          // Pénalité
+          if (score > 0) score -= 1;
+          
+          // Supprimer l'obstacle
+          obstacles.splice(i, 1);
+          continue;
+        }
+        
+        // Supprimer les obstacles qui sortent de l'écran
+        if (obstacles[i].x + obstacles[i].width < 0) {
+          obstacles.splice(i, 1);
+        }
+      }
+
+      // Vérifier le niveau actuel
+      level = Math.floor(score / 20) + 1;
+      if (level > lastLevel) {
+        levelUpMessage = `Niveau ${level} ! + de vitesse !`;
+        setTimeout(() => {
+          levelUpMessage = '';
+        }, 2000);
+        lastLevel = level;
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Dessiner le joueur
+      drawPlayer();
+      
+      // Dessiner les pièces et billets
+      drawCoins();
+      
+      // Dessiner les obstacles
+      drawObstacles();
+      
+      // Afficher le score
+      drawScore();
+      
+      // Afficher le message de niveau si nécessaire
+      drawLevelUpMessage();
+    }
+  </script>
+</body>
+</html>

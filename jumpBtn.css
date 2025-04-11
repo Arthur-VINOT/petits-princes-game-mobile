@@ -1,0 +1,18 @@
+
+  /* Par défaut : masquer le bouton */
+  #jumpBtn {
+    display: none;
+  }
+
+  /* Afficher le bouton seulement sur les écrans tactiles */
+  @media (pointer: coarse) {
+    #jumpBtn {
+      display: inline-block;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 15px 25px;
+      font-size: 18px;
+      z-index: 1000;
+    }
+  }
