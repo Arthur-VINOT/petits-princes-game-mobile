@@ -81,7 +81,6 @@
 </head>
 <body>
   <canvas id="game"></canvas>
-
   <div id="loginZone">
     <h2>Connexion au jeu 🌟
       <br>Ces information nous serve a dévlopé un classement des joueur. Merci 🤗
@@ -279,7 +278,7 @@
       score = 0;
       level = 1;
       gameSpeed = 4;
-      maxScore = 49;
+      maxScore = 69;
       lastLevel = 1;
       levelUpMessage = "";
       gameRunning = true;
@@ -302,7 +301,7 @@
 
     function update() {
       // Vérifier la condition de victoire
-      if (score >= 100) {
+      if (score >= 69) {
         gameRunning = false;
         clearInterval(gravityTimer);
         endScreen.style.display = 'flex';
